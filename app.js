@@ -1,9 +1,9 @@
-// 1. ดึงฟังก์ชันการใช้งานจากคลังระบบ Firebase SDK ผ่านช่องทางออนไลน์ (CDN)
+// 1. ดึงฟังก์ชันการใช้งานจากคลังระบบ Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 2. รหัสบ้านพักโปรเจกต์ระบุตัวตนของคุณครูบนระบบ Firebase
+// 2. รหัสระบุตัวตนโปรเจกต์ของ Teacher Owlvy
 const firebaseConfig = {
   apiKey: "AIzaSyCFSnmzWAJOjf9Asb-nYYPAq8jYFgj1hDo",
   authDomain: "owlvyhouseacademy-gate.firebaseapp.com",
@@ -13,13 +13,13 @@ const firebaseConfig = {
   appId: "1:724477316254:web:0ddd4fe36ee3b028e73f8f"
 };
 
-// 3. เริ่มต้นสั่งการทำงานเบื้องหลังระบบ
+// 3. เริ่มต้นระบบงาน
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// ดึงการเชื่อมต่อแท็กแสดงผลบนหน้าต่างเว็บไซต์
+// ดึงการเชื่อมต่อแท็กแสดงผลบนหน้าจอ
 const loginSection = document.getElementById('login-section');
 const formSection = document.getElementById('form-section');
 const welcomeSection = document.getElementById('welcome-section');
@@ -27,75 +27,91 @@ const userNameSpan = document.getElementById('user-name');
 
 let currentUser = null;
 
-// 4. ลอจิกระบบกดปุ่มเพื่อขอล็อกอินบัญชี Google
+// 🌟 [เพิ่มเข้ามาใหม่] ดักจับผลลัพธ์ทันทีหลังจากกระโดดกลับมาจากหน้าล็อกอิน Google (แก้ปัญหาวนลูปบนมือถือ)
+async function checkRedirectResult() {
+    try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+            // ถ้าระบบตรวจพบตั๋วล็อกอินที่ติดกลับมา ให้เรียกฟังก์ชันจัดการข้อมูลเด็กทันที
+            await handleUserStatus(result.user);
+        }
+    } catch (error) {
+        console.error("Error catching redirect result:", error);
+    }
+}
+checkRedirectResult();
+
+// 4. ระบบกดปุ่มล็อกอิน
 document.getElementById('btn-login').addEventListener('click', () => {
-    // ฟังก์ชันตรวจสัญญานอินเทอร์เน็ตว่าเด็กๆ เปิดผ่านหน้าจอมือถือ/แท็บเล็ตอยู่หรือไม่?
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     if (isMobile) {
-        // หากเล่นบนมือถือ ➡️ ใช้วิธีย้ายหน้าจอไปหน้าล็อกอินตรง (Redirect) เพื่อแก้อาการ In-App บล็อก
+        // มือถือ ➡️ ย้ายหน้าจอหลบ In-App Browser บล็อก
         signInWithRedirect(auth, provider).catch((error) => console.error("Redirect login failed:", error));
     } else {
-        // หากเล่นบนคอมพิวเตอร์ PC ➡️ เปิดหน้าต่างเล็กป๊อปอัปเด้งซ้อนขึ้นมาตามปกติ (Popup)
+        // คอมพิวเตอร์ PC ➡️ เปิดป๊อปอัปเด้งซ้อนตามปกติ
         signInWithPopup(auth, provider).catch((error) => console.error("Popup login failed:", error));
     }
 });
 
-// 5. ตัวตรวจจับความเคลื่อนไหวสถานะการล็อกอิน (คอยตรวจเช็กว่าเด็กคนนี้ลงทะเบียนไปแล้วหรือยัง)
+// 5. ตัวตรวจจับสถานะล็อกอินปกติ
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        currentUser = user;
-        loginSection.classList.add('hidden'); // ซ่อนปุ่มกดล็อกอินทิ้งไปเมื่อเข้ามาสำเร็จ
-        
-        // เข้าไปสำรวจในตาราง Cloud Firestore ว่ามีประวัติข้อมูลของคนนี้อยู่ไหม
-        const userDocRef = doc(db, "registered_students", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (userDocSnap.exists()) {
-            // กรณีเป็นเด็กเก่าที่ลงทะเบียนไว้เสร็จสรรพแล้ว ➡️ ข้ามไปหน้าแจกลิงก์ข้อสอบได้เลย
-            showWelcomePage();
-        } else {
-            // กรณีเพิ่งเคยเข้ามาครั้งแรก ➡️ โชว์ชื่อ และเปิดสวิตช์ฟอร์มให้กรอกชื่อสถาบันกับระดับชั้น
-            userNameSpan.innerText = user.displayName;
-            formSection.classList.remove('hidden');
-        }
+        await handleUserStatus(user);
     } else {
-        // กรณีไม่ได้ล็อกอิน หรือมีสัญญาณหลุด ➡️ ย้อนคืนค่ากลับไปหน้าโชว์ปุ่มแรกสุด
+        // ถ้าไม่ได้ล็อกอิน ➡️ ให้แสดงปุ่มเข้าสู่ระบบ
         loginSection.classList.remove('hidden');
         formSection.classList.add('hidden');
         welcomeSection.classList.add('hidden');
     }
 });
 
-// 6. ลอจิกระบบเมื่อนักเรียนกดปุ่มบันทึกข้อมูลเพื่อส่งเข้าคลาวด์คิว
+// 🌟 ฟังก์ชันหลักแยกออกมารวบรวมขั้นตอนจัดการข้อมูลของนักเรียน
+async function handleUserStatus(user) {
+    currentUser = user;
+    loginSection.classList.add('hidden'); // ซ่อนปุ่มล็อกอินหลัก
+    
+    // สำรวจข้อมูลประวัติเด็กใน Cloud Firestore
+    const userDocRef = doc(db, "registered_students", user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (userDocSnap.exists()) {
+        // เด็กเก่าที่ลงทะเบียนแล้ว ➡️ ปล่อยผ่านไปรับลิงก์ Gem ได้ทันที
+        showWelcomePage();
+    } else {
+        // เด็กใหม่ ➡️ แสดงฟอร์มกรอกชื่อสถาบันและชั้นเรียน
+        userNameSpan.innerText = user.displayName;
+        formSection.classList.remove('hidden');
+        welcomeSection.classList.add('hidden'); // ซ่อนส่วนลิงก์ไว้ก่อนจนกว่าจะเซฟ
+    }
+}
+
+// 6. ระบบกดบันทึกข้อมูลฟอร์ม
 document.getElementById('btn-save').addEventListener('click', async () => {
     const schoolName = document.getElementById('school-name').value.trim();
     const eduLevel = document.getElementById('education-level').value;
 
-    // ระบบแจ้งตักเตือนกรณีเด็กกรอกข้อมูลไม่ครบถ้วน
     if (!schoolName || !eduLevel) {
-        alert("กรุณากรอกชื่อโรงเรียนและเลือกชั้นเรียนก่อนกดรับสิทธิ์เข้าสอบนะคะคุณครูรออยู่ค่ะ 😊");
+        alert("กรุณากรอกชื่อโรงเรียนและเลือกชั้นเรียนก่อนกดรับสิทธิ์เข้าสอบนะคะ 😊");
         return;
     }
 
     if (currentUser) {
-        // สั่งสร้างตารางบันทึกข้อมูลเรียงเป็นคอลัมน์ส่งไปยัง Cloud Firestore (สิงคโปร์)
+        // เขียนข้อมูลบันทึกลงคลาวด์ฐานข้อมูลสิงคโปร์
         await setDoc(doc(db, "registered_students", currentUser.uid), {
             uid: currentUser.uid,
             displayName: currentUser.displayName,
             email: currentUser.email,
             school: schoolName,
             grade: eduLevel,
-            registeredAt: new Date() // ประทับเวลาที่ลงทะเบียนสำเร็จแบบวินาทีต่อวินาที
+            registeredAt: new Date()
         });
 
-        // ซ่อนฟอร์มกรอกข้อมูลและเลื่อนโชว์หน้าแจกลิงก์
         formSection.classList.add('hidden');
         showWelcomePage();
     }
 });
 
-// ฟังก์ชันเปิดแสดงหน้าต่างแจกลิงก์ควิซ Gem ของคุณครู
 function showWelcomePage() {
     welcomeSection.classList.remove('hidden');
 }
