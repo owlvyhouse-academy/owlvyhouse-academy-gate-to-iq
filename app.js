@@ -1,25 +1,25 @@
-// ดึงไลบรารี Firebase จาก CDN ของ Google โดยตรง (ไม่ต้องติดตั้งลงคอมพิวเตอร์)
+// 1. ดึงฟังก์ชันการใช้งานจากคลังระบบ Firebase SDK ผ่านช่องทางออนไลน์ (CDN)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// ⚠️ วางก้อนข้อมูลคอนฟิกที่คุณครูก๊อปปี้มาจากหลังบ้าน Firebase ตรงนี้แทนที่ได้เลยครับ
+// 2. รหัสบ้านพักโปรเจกต์ระบุตัวตนของคุณครูบนระบบ Firebase
 const firebaseConfig = {
-apiKey: "AIzaSyCFSnmzWAJOjf9Asb-nYYPAq8jYFgj1hDo",
-authDomain: "owlvyhouseacademy-gate.firebaseapp.com",
-projectId: "owlvyhouseacademy-gate",
-storageBucket: "owlvyhouseacademy-gate.firebasestorage.app",
-messagingSenderId: "724477316254",
-appId: "1:724477316254:web:0ddd4fe36ee3b028e73f8f"
+  apiKey: "AIzaSyCFSnmzWAJOjf9Asb-nYYPAq8jYFgj1hDo",
+  authDomain: "owlvyhouseacademy-gate.firebaseapp.com",
+  projectId: "owlvyhouseacademy-gate",
+  storageBucket: "owlvyhouseacademy-gate.firebasestorage.app",
+  messagingSenderId: "724477316254",
+  appId: "1:724477316254:web:0ddd4fe36ee3b028e73f8f"
 };
 
-// เริ่มต้นเปิดระบบงาน Firebase
+// 3. เริ่มต้นสั่งการทำงานเบื้องหลังระบบ
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// ดึงองค์ประกอบหน้าเว็บมาเตรียมใช้งาน
+// ดึงการเชื่อมต่อแท็กแสดงผลบนหน้าต่างเว็บไซต์
 const loginSection = document.getElementById('login-section');
 const formSection = document.getElementById('form-section');
 const welcomeSection = document.getElementById('welcome-section');
@@ -27,64 +27,75 @@ const userNameSpan = document.getElementById('user-name');
 
 let currentUser = null;
 
-// 1. ระบบกดปุ่มล็อกอินด้วย Google ด้วยป๊อปอัป
+// 4. ลอจิกระบบกดปุ่มเพื่อขอล็อกอินบัญชี Google
 document.getElementById('btn-login').addEventListener('click', () => {
-    signInWithPopup(auth, provider).catch((error) => console.error("Login failed:", error));
+    // ฟังก์ชันตรวจสัญญานอินเทอร์เน็ตว่าเด็กๆ เปิดผ่านหน้าจอมือถือ/แท็บเล็ตอยู่หรือไม่?
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+        // หากเล่นบนมือถือ ➡️ ใช้วิธีย้ายหน้าจอไปหน้าล็อกอินตรง (Redirect) เพื่อแก้อาการ In-App บล็อก
+        signInWithRedirect(auth, provider).catch((error) => console.error("Redirect login failed:", error));
+    } else {
+        // หากเล่นบนคอมพิวเตอร์ PC ➡️ เปิดหน้าต่างเล็กป๊อปอัปเด้งซ้อนขึ้นมาตามปกติ (Popup)
+        signInWithPopup(auth, provider).catch((error) => console.error("Popup login failed:", error));
+    }
 });
 
-// 2. ตัวตรวจจับสถานะผู้ใช้ (คอยเฝ้าเช็กว่าเด็กคนนี้ล็อกอินค้างไว้หรือยัง)
+// 5. ตัวตรวจจับความเคลื่อนไหวสถานะการล็อกอิน (คอยตรวจเช็กว่าเด็กคนนี้ลงทะเบียนไปแล้วหรือยัง)
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        loginSection.classList.add('hidden');
+        loginSection.classList.add('hidden'); // ซ่อนปุ่มกดล็อกอินทิ้งไปเมื่อเข้ามาสำเร็จ
         
-        // เช็กใน Firebase Firestore ว่าเด็กอีเมลล์นี้เคยลงทะเบียนกรอกชื่อโรงเรียนไว้หรือยัง?
+        // เข้าไปสำรวจในตาราง Cloud Firestore ว่ามีประวัติข้อมูลของคนนี้อยู่ไหม
         const userDocRef = doc(db, "registered_students", user.uid);
         const userDocSnap = await getDoc(userDocRef);
 
         if (userDocSnap.exists()) {
-            // ถ้าประวัติตรงกันว่าลงชื่อไว้แล้ว ➡️ ข้ามไปให้รับลิงก์ Gem ได้เลย
+            // กรณีเป็นเด็กเก่าที่ลงทะเบียนไว้เสร็จสรรพแล้ว ➡️ ข้ามไปหน้าแจกลิงก์ข้อสอบได้เลย
             showWelcomePage();
         } else {
-            // ถ้าเป็นเด็กใหม่ ➡️ เปิดฟอร์มให้พิมพ์ชื่อโรงเรียนและระดับชั้น
+            // กรณีเพิ่งเคยเข้ามาครั้งแรก ➡️ โชว์ชื่อ และเปิดสวิตช์ฟอร์มให้กรอกชื่อสถาบันกับระดับชั้น
             userNameSpan.innerText = user.displayName;
             formSection.classList.remove('hidden');
         }
     } else {
-        // ถ้าไม่ได้ล็อกอิน ➡️ ย้อนกลับไปโชว์ปุ่มล็อกอินแรกสุด
+        // กรณีไม่ได้ล็อกอิน หรือมีสัญญาณหลุด ➡️ ย้อนคืนค่ากลับไปหน้าโชว์ปุ่มแรกสุด
         loginSection.classList.remove('hidden');
         formSection.classList.add('hidden');
         welcomeSection.classList.add('hidden');
     }
 });
 
-// 3. ระบบกดบันทึกฟอร์มลงฐานข้อมูล Firestore
+// 6. ลอจิกระบบเมื่อนักเรียนกดปุ่มบันทึกข้อมูลเพื่อส่งเข้าคลาวด์คิว
 document.getElementById('btn-save').addEventListener('click', async () => {
     const schoolName = document.getElementById('school-name').value.trim();
     const eduLevel = document.getElementById('education-level').value;
 
+    // ระบบแจ้งตักเตือนกรณีเด็กกรอกข้อมูลไม่ครบถ้วน
     if (!schoolName || !eduLevel) {
-        alert("กรุณากรอกข้อมูลให้ครบถ้วนก่อนรับลิงก์นะคะ");
+        alert("กรุณากรอกชื่อโรงเรียนและเลือกชั้นเรียนก่อนกดรับสิทธิ์เข้าสอบนะคะคุณครูรออยู่ค่ะ 😊");
         return;
     }
 
     if (currentUser) {
-        // ทำการสร้าง/เขียนทับก้อนข้อมูลเด็กคนนี้ลงตารางฐานข้อมูลใน Firebase
+        // สั่งสร้างตารางบันทึกข้อมูลเรียงเป็นคอลัมน์ส่งไปยัง Cloud Firestore (สิงคโปร์)
         await setDoc(doc(db, "registered_students", currentUser.uid), {
             uid: currentUser.uid,
             displayName: currentUser.displayName,
             email: currentUser.email,
             school: schoolName,
             grade: eduLevel,
-            registeredAt: new Date()
+            registeredAt: new Date() // ประทับเวลาที่ลงทะเบียนสำเร็จแบบวินาทีต่อวินาที
         });
 
+        // ซ่อนฟอร์มกรอกข้อมูลและเลื่อนโชว์หน้าแจกลิงก์
         formSection.classList.add('hidden');
         showWelcomePage();
     }
 });
 
-// ฟังก์ชันเปิดหน้าแสดงลิงก์ข้อสอบ
+// ฟังก์ชันเปิดแสดงหน้าต่างแจกลิงก์ควิซ Gem ของคุณครู
 function showWelcomePage() {
     welcomeSection.classList.remove('hidden');
 }
