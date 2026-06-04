@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ลงทะเบียนเข้าสู่ระบบแบบทดสอบ - Owlvy Academy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 350px; }
+        h2 { color: #333; }
+        button { background: #4285F4; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 15px; }
+        input, select { width: 90%; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 6px; }
+        .hidden { display: none; }
+        .success-box { color: green; font-weight: bold; margin-top: 20px; }
+        .gem-link { display: inline-block; margin-top: 15px; padding: 12px; background: #20c997; color: white; text-decoration: none; border-radius: 6px; width: 90%; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Owlvy Academy</h2>
+    <p>กรุณาลงทะเบียนเพื่อรับสิทธิ์เข้าใช้งานแบบทดสอบวิทยาศาสตร์อัจฉริยะ</p>
+
+    <!-- ส่วนที่ 1: ปุ่มล็อกอินด้วย Google -->
+    <div id="login-section">
+        <button id="btn-login">🌐 เข้าสู่ระบบด้วย Google Account</button>
+    </div>
+
+    <!-- ส่วนที่ 2: ฟอร์มกรอกข้อมูลเพิ่มเติม (จะโผล่มาหลังล็อกอินเสร็จ) -->
+    <div id="form-section" class="hidden">
+        <p>ยินดีต้อนรับคุณ <span id="user-name"></span></p>
+        <input type="text" id="school-name" placeholder="ชื่อโรงเรียน (เช่น โรงเรียนวิทยาศาสตร์...)" required>
+        <select id="education-level">
+            <option value="">-- เลือกระดับชั้นการศึกษา --</option>
+            <option value="ป.4">ประถมศึกษาปีที่ 4</option>
+            <option value="ป.5">ประถมศึกษาปีที่ 5</option>
+            <option value="ป.6">ประถมศึกษาปีที่ 6</option>
+            <option value="ม.1">มัธยมศึกษาปีที่ 1</option>
+            <option value="ม.2">มัธยมศึกษาปีที่ 2</option>
+            <option value="ม.3">มัธยมศึกษาปีที่ 3</option>
+            <option value="Gifted">ห้องเรียนพิเศษ (Gifted)</option>
+        </select>
+        <button id="btn-save">บันทึกข้อมูลและรับลิงก์</button>
+    </div>
+
+    <!-- ส่วนที่ 3: หน้าต่างแจกลิงก์ควิซ Gem -->
+    <div id="welcome-section" class="hidden">
+        <div class="success-box">🎉 ลงทะเบียนสำเร็จเรียบร้อยแล้วค่ะ!</div>
+        <p>กดที่ลิงก์ด้านล่างเพื่อเริ่มทำข้อสอบเฉพาะบุคคลได้เลย:</p>
+        <a href="https://gemini.google.com/gem/c67db85657a3" target="_blank" class="gem-link">🚀 กดเข้าสู่แบบทดสอบวิทยาศาสตร์ (Gem)</a>
+    </div>
+</div>
+
+<!-- เชื่อมต่อสคริปต์หลัก -->
+<script type="module" src="app.js"></script>
+</body>
+</html>
